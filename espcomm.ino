@@ -2,14 +2,19 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
+#include <FS.h>
 
 #ifndef STASSID
 #define STASSID "ERICESP"
 #define STAPSK "!Qaz@Wsx"
 #endif
 
+#define MSG_LEN 1024
+#define HTML_LEN 1024
 const char *ssid = STASSID;
 const char *password = STAPSK;
+
+char spiffs_info[MSG_LEN];
 
 uint8_t startMode = HIGH;
 
@@ -54,6 +59,7 @@ void handleForm()
         {
             message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
         }
+        message += spiffs_info;
         server.send(200, "text/plain", message);
     }
 }
@@ -83,7 +89,6 @@ void startAP()
     Serial.print("AP IP address: ");
     Serial.println(myIP);
     server.on("/", handleRoot);
-    server.on("/postplain/", handlePlain);
     server.on("/postform/", handleForm);
     server.onNotFound(handleNotFound);
     server.begin();
@@ -92,9 +97,23 @@ void startAP()
 
 void setup(void)
 {
+    Serial.begin(115200);
+    FSInfo fs_info;
+    SPIFFS.begin();
+    SPIFFS.info(fs_info);
+    memset(spiffs_info,0x0,MSG_LEN);
+    sprintf(spiffs_info,"Total bytes : %d\nused bytes : %d\nblock size : %d\npage size : %d\nmax open files : %d\nmax path length:%d\n",
+                   fs_info.totalBytes,
+                   fs_info.usedBytes,
+                   fs_info.blockSize,
+                   fs_info.pageSize,
+                   fs_info.maxOpenFiles,
+                   fs_info.maxPathLength);
+    Serial.println(spiffs_info);
+    SPIFFS.end();
     delay(3000);
-    pinMode(CONFIG_PIN, INPUT);
-    startMode = digitalRead(CONFIG_PIN);
+    // pinMode(CONFIG_PIN, INPUT);
+    // startMode = digitalRead(CONFIG_PIN);
     if (startMode)
     {
         startAP();
@@ -103,9 +122,17 @@ void setup(void)
     {
         Serial.println("start STA Mode");
     }
+    pinMode(CONFIG_PIN, OUTPUT);
 }
 
 void loop(void)
 {
-    server.handleClient();
+    if (startMode)
+    {
+        server.handleClient();
+    }
+    else
+    {
+        digitalWrite(CONFIG_PIN, HIGH);
+    }
 }
