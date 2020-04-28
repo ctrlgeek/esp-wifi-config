@@ -21,7 +21,7 @@ uint8_t apMode = HIGH;
 ESP8266WebServer server(80);
 
 #ifndef CONFIG_PIN
-#define CONFIG_PIN 2
+#define CONFIG_PIN 0
 #endif
 
 const String postForms = "<html>\
@@ -113,27 +113,27 @@ void setup(void)
     SPIFFS.end();
     delay(3000);
     pinMode(CONFIG_PIN, INPUT);
-    // startMode = digitalRead(CONFIG_PIN);
-    if (digitalRead(CONFIG_PIN)==LOW)
+    apMode = digitalRead(CONFIG_PIN);
+    Serial.printf("apMode %d\n",apMode);
+    if (apMode == LOW)
     {
         startAP();
     }
     else
     {
-        apMode = HIGH;
         Serial.println("start STA Mode");
     }
-    pinMode(CONFIG_PIN, OUTPUT);
+    // pinMode(CONFIG_PIN, OUTPUT);
 }
 
 void loop(void)
 {
-    if (apMode == HIGH)
+    if (apMode == LOW)
     {
         server.handleClient();
     }
     else
     {
-        digitalWrite(CONFIG_PIN, HIGH);
+        // digitalWrite(CONFIG_PIN, HIGH);
     }
 }
