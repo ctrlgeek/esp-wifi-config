@@ -16,7 +16,7 @@ const char *password = STAPSK;
 
 char spiffs_info[MSG_LEN];
 
-uint8_t startMode = HIGH;
+uint8_t apMode = HIGH;
 
 ESP8266WebServer server(80);
 
@@ -114,12 +114,13 @@ void setup(void)
     delay(3000);
     // pinMode(CONFIG_PIN, INPUT);
     // startMode = digitalRead(CONFIG_PIN);
-    if (startMode)
+    if (digitalRead(CONFIG_PIN))
     {
         startAP();
     }
     else
     {
+        apMode = LOW;
         Serial.println("start STA Mode");
     }
     pinMode(CONFIG_PIN, OUTPUT);
@@ -127,7 +128,7 @@ void setup(void)
 
 void loop(void)
 {
-    if (startMode)
+    if (apMode)
     {
         server.handleClient();
     }
