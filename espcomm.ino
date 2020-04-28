@@ -3,6 +3,7 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <FS.h>
+#include <ArduinoJson.h>          //https://github.com/bblanchon/ArduinoJson
 
 #ifndef STASSID
 #define STASSID "ERICESP"
@@ -21,7 +22,7 @@ uint8_t apMode = HIGH;
 ESP8266WebServer server(80);
 
 #ifndef CONFIG_PIN
-#define CONFIG_PIN 0
+#define CONFIG_PIN 2
 #endif
 
 const String postForms = "<html>\
@@ -112,28 +113,28 @@ void setup(void)
     Serial.println(spiffs_info);
     SPIFFS.end();
     delay(3000);
-    pinMode(CONFIG_PIN, INPUT);
-    apMode = digitalRead(CONFIG_PIN);
-    Serial.printf("apMode %d\n",apMode);
-    if (apMode == LOW)
-    {
+    // pinMode(CONFIG_PIN, INPUT);
+    // apMode = digitalRead(CONFIG_PIN);
+    // Serial.printf("apMode %d\n",apMode);
+    // if (apMode == LOW)
+    // {
         startAP();
-    }
-    else
-    {
-        Serial.println("start STA Mode");
-    }
+    // }
+    // else
+    // {
+    //     Serial.println("start STA Mode");
+    // }
     // pinMode(CONFIG_PIN, OUTPUT);
 }
 
 void loop(void)
 {
-    if (apMode == LOW)
-    {
+    // if (apMode == LOW)
+    // {
         server.handleClient();
-    }
-    else
-    {
-        // digitalWrite(CONFIG_PIN, HIGH);
-    }
+    // }
+    // else
+    // {
+    //     // digitalWrite(CONFIG_PIN, HIGH);
+    // }
 }
