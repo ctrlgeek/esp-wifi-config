@@ -112,15 +112,15 @@ void setup(void)
     Serial.println(spiffs_info);
     SPIFFS.end();
     delay(3000);
-    // pinMode(CONFIG_PIN, INPUT);
+    pinMode(CONFIG_PIN, INPUT);
     // startMode = digitalRead(CONFIG_PIN);
-    if (digitalRead(CONFIG_PIN))
+    if (digitalRead(CONFIG_PIN)==LOW)
     {
         startAP();
     }
     else
     {
-        apMode = LOW;
+        apMode = HIGH;
         Serial.println("start STA Mode");
     }
     pinMode(CONFIG_PIN, OUTPUT);
@@ -128,7 +128,7 @@ void setup(void)
 
 void loop(void)
 {
-    if (apMode)
+    if (apMode == HIGH)
     {
         server.handleClient();
     }
