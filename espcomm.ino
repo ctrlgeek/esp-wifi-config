@@ -159,12 +159,12 @@ void loadConfig()
                 memset(tmp_buf, 0x0, JSON_BUFFER_SIZE);
                 configFile.readBytes(tmp_buf, size);
                 Serial.printf("config file :%s\n", tmp_buf);
-                DynamicJsonDocument jsonBuffer(JSON_BUFFER_SIZE);
-                deserializeJson(jsonBuffer, tmp_buf);
+                DynamicJsonDocument doc(JSON_BUFFER_SIZE);
+                deserializeJson(doc, tmp_buf);
                 Serial.println("\nparsed json");
 
-                strcpy(ap_ssid, jsonBuffer["ap_ssid"]);
-                strcpy(ap_psk, jsonBuffer["ap_psk"]);
+                strcpy(ap_ssid, doc["ap_ssid"]);
+                strcpy(ap_psk, doc["ap_psk"]);
                 Serial.printf("ap_ssid:%s\n", ap_ssid);
                 Serial.printf("ap_psk:%s\n", ap_psk);
             }
