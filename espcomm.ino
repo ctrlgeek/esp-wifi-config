@@ -5,15 +5,15 @@
 #include <ESP8266mDNS.h>
 #include <FS.h>
 
-#ifndef STASSID
+//AP模式下連線的SSID跟PSK
 #define STASSID "ERICESP"
 #define STAPSK "!Qaz@Wsx"
-#endif
 
 #define MSG_LEN 1024
-#define HTML_LEN 1024
 #define SSID_LEN 40
 #define PSK_LEN 20
+#define JSON_BUFFER_SIZE 1024
+
 const char *ssid = STASSID;
 const char *password = STAPSK;
 const char *id_of_ssid = "ssid";
@@ -22,15 +22,12 @@ const char *id_of_psk = "psk";
 char spiffs_info[MSG_LEN];
 char ap_ssid[SSID_LEN];
 char ap_psk[PSK_LEN];
+char tmp_buf[JSON_BUFFER_SIZE];
 
-uint8_t apMode = HIGH;
+boolean apMode = true;
 size_t tmpLen;
 
 ESP8266WebServer server(80);
-
-#ifndef CONFIG_PIN
-#define CONFIG_PIN 2
-#endif
 
 const String postForms = "<html>\
   <head>\
@@ -49,6 +46,7 @@ const String postForms = "<html>\
   </body>\
 </html>";
 
+//顯示預設進入的網頁
 void handleRoot()
 {
     server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -57,6 +55,7 @@ void handleRoot()
     server.send(200, "text/html", postForms);
 }
 
+//處理post上來的資料
 void handleForm()
 {
     if (server.method() != HTTP_POST)
@@ -65,28 +64,28 @@ void handleForm()
     }
     else
     {
-        String message = "POST form was:\n";
         for (uint8_t i = 0; i < server.args(); i++)
         {
-            message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
-            if (!strcmp(id_of_ssid, server.argName(i)))
+            if (!strcmp(id_of_ssid, server.argName(i).c_str()))
             {
-                tmpLen = strlen(server.arg(i));
+                tmpLen = strlen(server.arg(i).c_str());
                 if (tmpLen > SSID_LEN)
                     tmpLen = SSID_LEN;
                 memset(ap_ssid, 0x0, SSID_LEN);
-                memcpy(ap_ssid, server.arg(i), tmpLen);
+                memcpy(ap_ssid, server.arg(i).c_str(), tmpLen);
             }
-            else if (!strcmp(id_of_psk, server.argName(i)))
+            else if (!strcmp(id_of_psk, server.argName(i).c_str()))
             {
-                tmpLen = strlen(server.arg(i));
+                tmpLen = strlen(server.arg(i).c_str());
                 if (tmpLen > PSK_LEN)
                     tmpLen = PSK_LEN;
                 memset(ap_psk, 0x0, PSK_LEN);
-                memcpy(ap_psk, server.arg(i), tmpLen);
+                memcpy(ap_psk, server.arg(i).c_str(), tmpLen);
             }
         }
         saveConfig();
+        String message = "Flash info:\n";
+        dumpFSInfo();
         message += spiffs_info;
         server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         server.sendHeader("Pragma", "no-cache");
@@ -115,8 +114,19 @@ void handleNotFound()
     server.send(404, "text/plain", message);
 }
 
+//啟動AP模式
 void startAP()
 {
+    Serial.println("Start AP mode.");
+    //讓LED閃兩下
+    digitalWrite(2,HIGH);
+    delay(500);
+    digitalWrite(2,LOW);
+    delay(500);
+    digitalWrite(2,HIGH);
+    delay(500);
+    digitalWrite(2,LOW);
+
     WiFi.softAP(STASSID, STAPSK);
 
     IPAddress myIP = WiFi.softAPIP();
@@ -129,6 +139,7 @@ void startAP()
     Serial.println("HTTP server started");
 }
 
+//讀取設定值
 void loadConfig()
 {
     if (SPIFFS.begin())
@@ -143,26 +154,22 @@ void loadConfig()
             {
                 Serial.println("opened config file");
                 size_t size = configFile.size();
+                Serial.printf("config file size :%d\n", size);
                 // Allocate a buffer to store contents of the file.
-                std::unique_ptr<char[]> buf(new char[size]);
+                memset(tmp_buf, 0x0, JSON_BUFFER_SIZE);
+                configFile.readBytes(tmp_buf, size);
+                Serial.printf("config file :%s\n", tmp_buf);
+                DynamicJsonDocument jsonBuffer(JSON_BUFFER_SIZE);
+                deserializeJson(jsonBuffer, tmp_buf);
+                Serial.println("\nparsed json");
 
-                configFile.readBytes(buf.get(), size);
-                DynamicJsonBuffer jsonBuffer;
-                JsonObject &json = jsonBuffer.parseObject(buf.get());
-                json.printTo(Serial);
-                if (json.success())
-                {
-                    Serial.println("\nparsed json");
-
-                    strcpy(ap_ssid, json["ap_ssid"]);
-                    strcpy(ap_psk, json["ap_psk"]);
-                }
-                else
-                {
-                    Serial.println("failed to load json config");
-                }
+                strcpy(ap_ssid, jsonBuffer["ap_ssid"]);
+                strcpy(ap_psk, jsonBuffer["ap_psk"]);
+                Serial.printf("ap_ssid:%s\n", ap_ssid);
+                Serial.printf("ap_psk:%s\n", ap_psk);
             }
         }
+        SPIFFS.end();
     }
     else
     {
@@ -170,28 +177,36 @@ void loadConfig()
     }
 }
 
+//儲存設定值
 void saveConfig()
 {
     Serial.println("saving config");
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject &json = jsonBuffer.createObject();
-    json["ap_ssid"] = ssid;
-    json["ap_psk"] = ap_psk;
+    DynamicJsonDocument doc(JSON_BUFFER_SIZE);
+    Serial.printf("ap_ssid:%s\n", ap_ssid);
+    Serial.printf("ap_psk:%s\n", ap_psk);
+    doc["ap_ssid"] = ap_ssid;
+    doc["ap_psk"] = ap_psk;
 
-    File configFile = SPIFFS.open("/config.json", "w");
-    if (!configFile)
+    if (SPIFFS.begin())
     {
-        Serial.println("failed to open config file for writing");
-    }
+        File configFile = SPIFFS.open("/config.json", "w");
+        if (!configFile)
+        {
+            Serial.println("failed to open config file for writing");
+        }
 
-    json.printTo(Serial);
-    json.printTo(configFile);
-    configFile.close();
+        serializeJson(doc, configFile);
+        configFile.close();
+        SPIFFS.end();
+    }
+    else
+    {
+        Serial.println("failed to mount FS");
+    }
 }
 
-void setup(void)
+void dumpFSInfo()
 {
-    Serial.begin(115200);
     FSInfo fs_info;
     SPIFFS.begin();
     SPIFFS.info(fs_info);
@@ -205,29 +220,27 @@ void setup(void)
             fs_info.maxPathLength);
     Serial.println(spiffs_info);
     SPIFFS.end();
-    delay(3000);
-    // pinMode(CONFIG_PIN, INPUT);
-    // apMode = digitalRead(CONFIG_PIN);
-    // Serial.printf("apMode %d\n",apMode);
-    // if (apMode == LOW)
-    // {
-    startAP();
-    // }
-    // else
-    // {
-    //     Serial.println("start STA Mode");
-    // }
-    // pinMode(CONFIG_PIN, OUTPUT);
+}
+
+//連線到基地台
+boolean connectWIFI()
+{
+    return false;
+}
+
+void setup(void)
+{
+    pinMode(2,OUTPUT);
+    Serial.begin(115200);
+    loadConfig();
+    //如果連不上WIFI，就進入AP模式
+    apMode = !connectWIFI();
+    if (apMode)
+        startAP();
 }
 
 void loop(void)
 {
-    // if (apMode == LOW)
-    // {
-    server.handleClient();
-    // }
-    // else
-    // {
-    //     // digitalWrite(CONFIG_PIN, HIGH);
-    // }
+    if (apMode)
+        server.handleClient();
 }
